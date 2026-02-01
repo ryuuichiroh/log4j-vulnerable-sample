@@ -1,0 +1,92 @@
+name: Main → Dependency-Track Sync
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dt-sync:
+    runs-on: ubuntu-latest
+    env:
+      DT_BASE_URL: ${{ secrets.DT_BASE_URL }}
+      DT_API_KEY:  ${{ secrets.DT_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # 1) SBOM 生成（Trivy でも Syft でもOK。ここは Trivy 例）
+      - name: Generate SBOM (CycloneDX JSON)
+        run: |
+          mkdir -p artifacts
+          docker run --rm -v "$PWD":/work aquasec/trivy:latest fs \
+            --format cyclonedx \
+            --output /work/artifacts/sbom.json \
+            /work
+
+      # 2) SBOM から projectName / projectVersion を抽出（2ホップ法）
+      - name: Derive projectName / projectVersion from SBOM
+        id: meta
+        run: |
+          set -e
+          ROOT_REF=$(jq -r '.metadata.component["bom-ref"]' artifacts/sbom.json)
+          POM_REF=$(jq -r --arg rr "$ROOT_REF" '
+            .dependencies[] | select(.ref==$rr) | .dependsOn[]' artifacts/sbom.json)
+          SELF_REF=$(jq -r --arg pr "$POM_REF" '
+            .dependencies[] | select(.ref==$pr) | .dependsOn[]' artifacts/sbom.json)
+
+          PN=$(jq -r --arg sr "$SELF_REF" '.components[] | select(."bom-ref"==$sr) | .name' artifacts/sbom.json)
+          PV=$(jq -r --arg sr "$SELF_REF" '.components[] | select(."bom-ref"==$sr) | .version' artifacts/sbom.json)
+
+          if [ -z "$PN" ] || [ -z "$PV" ] || [ "$PN" = "null" ] || [ "$PV" = "null" ]; then
+            echo "SBOM から name/version を特定できませんでした" >&2
+            exit 1
+          fi
+          echo "projectName=$PN"   >> $GITHUB_OUTPUT
+          echo "projectVersion=$PV" >> $GITHUB_OUTPUT
+          echo "Detected PN=$PN PV=$PV"
+
+      # 3) /v1/bom にアップロード（autoCreate=true で未存在は自動作成）
+      - name: Upload SBOM to Dependency-Track
+        run: |
+          curl -sS -X POST "$DT_BASE_URL/v1/bom" \
+            -H "X-Api-Key: $DT_API_KEY" \
+            -F "autoCreate=true" \
+            -F "projectName=${{ steps.meta.outputs.projectName }}" \
+            -F "projectVersion=${{ steps.meta.outputs.projectVersion }}" \
+            -F "bom=@artifacts/sbom.json"
+
+      # 4) （任意）VEX を適用したい場合は artifacts/vex.json を用意して有効化
+      # - name: Apply VEX
+      #   if: ${{ hashFiles('artifacts/vex.json') != '' }}
+      #   run: |
+      #     curl -sS -X POST "$DT_BASE_URL/v1/vex" \
+      #       -H "X-Api-Key: $DT_API_KEY" \
+      #       -F "projectName=${{ steps.meta.outputs.projectName }}" \
+      #       -F "projectVersion=${{ steps.meta.outputs.projectVersion }}" \
+      #       -F "vex=@artifacts/vex.json"
+
+      # 5) （任意）旧版を inactive にするロジックは運用に合わせて
+      #    例：明示的に前バージョンを渡せるなら lookup → PATCH
+      # - name: Deactivate previous version (optional)
+      #   run: |
+      #     PREV="1.0.0" # 例：手動 or 別ロジックで決める
+      #     PN=${{ steps.meta.outputs.projectName }}
+      #     if [ "$PREV" != "" ] && [ "$PREV" != "${{ steps.meta.outputs.projectVersion }}" ]; then
+      #       UUID=$(curl -sS "$DT_BASE_URL/v1/project/lookup?name=$(printf %s "$PN" | jq -sRr @uri)&version=$(printf %s "$PREV" | jq -sRr @uri)" \
+      #         -H "X-Api-Key: $DT_API_KEY" | jq -r '.uuid // empty')
+      #       if [ -n "$UUID" ]; then
+      #         curl -sS -X PATCH "$DT_BASE_URL/v1/project/$UUID" \
+      #           -H "X-Api-Key: $DT_API_KEY" -H "Content-Type: application/json" \
+      #           -d '{"active": false}'
+      #       fi
+      #     fi
