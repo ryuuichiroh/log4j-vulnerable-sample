@@ -65,28 +65,42 @@ jobs:
             -F "projectVersion=${{ steps.meta.outputs.projectVersion }}" \
             -F "bom=@artifacts/sbom.json"
 
-      # 4) （任意）VEX を適用したい場合は artifacts/vex.json を用意して有効化
-      # - name: Apply VEX
-      #   if: ${{ hashFiles('artifacts/vex.json') != '' }}
-      #   run: |
-      #     curl -sS -X POST "$DT_BASE_URL/v1/vex" \
-      #       -H "X-Api-Key: $DT_API_KEY" \
-      #       -F "projectName=${{ steps.meta.outputs.projectName }}" \
-      #       -F "projectVersion=${{ steps.meta.outputs.projectVersion }}" \
-      #       -F "vex=@artifacts/vex.json"
+      - name: List active DT project versions (inactive candidates)
+        run: |
+          PN="${{ steps.meta.outputs.projectName }}"
+          CUR="${{ steps.meta.outputs.projectVersion }}"
 
-      # 5) （任意）旧版を inactive にするロジックは運用に合わせて
-      #    例：明示的に前バージョンを渡せるなら lookup → PATCH
-      # - name: Deactivate previous version (optional)
-      #   run: |
-      #     PREV="1.0.0" # 例：手動 or 別ロジックで決める
-      #     PN=${{ steps.meta.outputs.projectName }}
-      #     if [ "$PREV" != "" ] && [ "$PREV" != "${{ steps.meta.outputs.projectVersion }}" ]; then
-      #       UUID=$(curl -sS "$DT_BASE_URL/v1/project/lookup?name=$(printf %s "$PN" | jq -sRr @uri)&version=$(printf %s "$PREV" | jq -sRr @uri)" \
-      #         -H "X-Api-Key: $DT_API_KEY" | jq -r '.uuid // empty')
-      #       if [ -n "$UUID" ]; then
-      #         curl -sS -X PATCH "$DT_BASE_URL/v1/project/$UUID" \
-      #           -H "X-Api-Key: $DT_API_KEY" -H "Content-Type: application/json" \
-      #           -d '{"active": false}'
-      #       fi
-      #     fi
+          echo "## Dependency-Track active versions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          RESP=$(curl -sS \
+            "$DT_BASE_URL/v1/project?name=$(printf %s "$PN" | jq -sRr @uri)&excludeInactive=true" \
+            -H "X-Api-Key: $DT_API_KEY")
+
+          # active な version 一覧
+          ACTIVE=$(echo "$RESP" | jq -r '.[].version')
+
+          echo "**Current version:** \`$CUR\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "**Active versions in DT:**" >> $GITHUB_STEP_SUMMARY
+          for v in $ACTIVE; do
+            echo "- $v" >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # inactive 候補（current 以外）
+          CANDIDATES=$(echo "$ACTIVE" | grep -v "^$CUR$" || true)
+
+          if [ -n "$CANDIDATES" ]; then
+            echo "### ⚠️ Inactive candidates" >> $GITHUB_STEP_SUMMARY
+            for v in $CANDIDATES; do
+              echo "- **$v**" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "➡️ If safe, deactivate via:" >> $GITHUB_STEP_SUMMARY
+            echo "\`Actions > Deactivate DT Project Version\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No inactive candidates found." >> $GITHUB_STEP_SUMMARY
+          fi
