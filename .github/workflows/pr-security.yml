@@ -93,7 +93,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           # 文字化け対策したいときは下のコメント解除（出力を文字列に固定）
-          # result-encoding: string
+          result-encoding: string
           script: |
             const body = `
             <!-- sbom-trivy-summary -->
