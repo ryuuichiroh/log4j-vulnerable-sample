@@ -92,27 +92,19 @@ jobs:
       - name: Create/Update PR comment (summary + link to artifacts)
         uses: actions/github-script@v7
         with:
+          # 文字化け対策したいときは下のコメント解除（出力を文字列に固定）
+          # result-encoding: string
           script: |
-            const { critical, high, medium, low, unknown, total } = {
-              critical: process.env.CRITICAL,
-              high: process.env.HIGH,
-              medium: process.env.MEDIUM,
-              low: process.env.LOW,
-              unknown: process.env.UNKNOWN,
-              total: process.env.TOTAL
-            };
-
-            // Artifact 直リンクは実行履歴ページ経由になるので、ここでは説明を記載
             const body = `
             <!-- sbom-trivy-summary -->
             🔍 **Dependency Security (SBOM-based) / PR Summary**
 
-            - **Critical**: ${critical}
-            - **High**: ${high}
-            - Medium: ${medium}
-            - Low: ${low}
-            - Unknown: ${unknown}
-            - **Total**: ${total}
+            - **Critical**: ${process.env.CRITICAL}
+            - **High**: ${process.env.HIGH}
+            - Medium: ${process.env.MEDIUM}
+            - Low: ${process.env.LOW}
+            - Unknown: ${process.env.UNKNOWN}
+            - **Total**: ${process.env.TOTAL}
 
             📄 **HTML レポート (High/Critical)** は **Artifacts** からダウンロードしてください：  
             **Actions → このジョブ → Artifacts → \`pr-security-report\` → \`trivy-report-high-critical.html\`**
@@ -123,16 +115,19 @@ jobs:
             > メモ: これは「PR 向けの即時チェック」です。正式な DT 更新は \`main\` マージ時のパイプラインで行われます。
             `;
 
-            const { context, github } = require('@actions/github');
-            const issue_number = context.payload.pull_request ? context.payload.pull_request.number : null;
+            // context / github / core は github-script で自動的に利用可能
+            const issue_number = context.payload.pull_request
+              ? context.payload.pull_request.number
+              : null;
             if (!issue_number) {
               core.info('No PR context; skipping comment.');
               return;
             }
 
-            // 既存コメントを探す（タグで識別）
+            // 既存コメントをタグで探して更新（重複防止）
             const { data: comments } = await github.rest.issues.listComments({
-              ...context.repo,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
               issue_number
             });
 
@@ -141,21 +136,23 @@ jobs:
 
             if (existing) {
               await github.rest.issues.updateComment({
-                ...context.repo,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
                 comment_id: existing.id,
                 body
               });
             } else {
               await github.rest.issues.createComment({
-                ...context.repo,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
                 issue_number,
                 body
               });
             }
         env:
           CRITICAL: ${{ steps.summary.outputs.critical }}
-          HIGH: ${{ steps.summary.outputs.high }}
-          MEDIUM: ${{ steps.summary.outputs.medium }}
-          LOW: ${{ steps.summary.outputs.low }}
-          UNKNOWN: ${{ steps.summary.outputs.unknown }}
-          TOTAL: ${{ steps.summary.outputs.total }}
+          HIGH:     ${{ steps.summary.outputs.high }}
+          MEDIUM:   ${{ steps.summary.outputs.medium }}
+          LOW:      ${{ steps.summary.outputs.low }}
+          UNKNOWN:  ${{ steps.summary.outputs.unknown }}
+          TOTAL:    ${{ steps.summary.outputs.total }}            }
