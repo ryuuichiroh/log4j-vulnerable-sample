@@ -49,7 +49,11 @@ jobs:
               --output /work/artifacts/trivy-report-high-critical.html \
               /work/artifacts/sbom.json
 
-      # JSON で総数を集計して PR コメント用のサマリを作る
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
       - name: Compute summary (all severities)
         id: summary
         run: |
@@ -59,12 +63,11 @@ jobs:
               --format json \
               /work/artifacts/sbom.json > artifacts/trivy-result.json
 
-          # jq で件数を集計（severity が無い場合は 0 に）
-          CRITICAL=$(jq '[.[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' artifacts/trivy-result.json)
-          HIGH=$(jq '[.[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length' artifacts/trivy-result.json)
-          MEDIUM=$(jq '[.[].Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' artifacts/trivy-result.json)
-          LOW=$(jq '[.[].Vulnerabilities[]? | select(.Severity=="LOW")] | length' artifacts/trivy-result.json)
-          UNKNOWN=$(jq '[.[].Vulnerabilities[]? | select(.Severity=="UNKNOWN")] | length' artifacts/trivy-result.json)
+          CRITICAL=$(jq '[.. | objects | .Vulnerabilities? // empty | .[]? | select(.Severity=="CRITICAL")] | length' artifacts/trivy-result.json)
+          HIGH=$(jq     '[.. | objects | .Vulnerabilities? // empty | .[]? | select(.Severity=="HIGH")]     | length' artifacts/trivy-result.json)
+          MEDIUM=$(jq   '[.. | objects | .Vulnerabilities? // empty | .[]? | select(.Severity=="MEDIUM")]   | length' artifacts/trivy-result.json)
+          LOW=$(jq      '[.. | objects | .Vulnerabilities? // empty | .[]? | select(.Severity=="LOW")]      | length' artifacts/trivy-result.json)
+          UNKNOWN=$(jq  '[.. | objects | .Vulnerabilities? // empty | .[]? | select(.Severity=="UNKNOWN")]  | length' artifacts/trivy-result.json)
           TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW + UNKNOWN))
 
           echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
