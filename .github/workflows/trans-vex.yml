@@ -37,18 +37,25 @@ jobs:
           FV="${{ inputs.fromVersion }}"
           TV="${{ inputs.toVersion }}"
 
-          enc() { jq -sRr @uri <<<"$1"; }
-
-          SRC=$(curl -sS "$DT_BASE_URL/v1/project/lookup?name=$(enc "$PN")&version=$(enc "$FV")" \
-            -H "X-Api-Key: $DT_API_KEY" | jq -r '.uuid // empty')
-          TGT=$(curl -sS "$DT_BASE_URL/v1/project/lookup?name=$(enc "$PN")&version=$(enc "$TV")" \
-            -H "X-Api-Key: $DT_API_KEY" | jq -r '.uuid // empty')
+          SRC=$(
+            curl -sS \
+              "$DT_BASE_URL/v1/project/lookup?name=$(printf %s "$PN" | jq -sRr @uri)&version=$(printf %s "$FV" | jq -sRr @uri)" \
+              -H "X-Api-Key: $DT_API_KEY" \
+            | jq -r '.uuid // empty'
+          )
+          
+          TGT=$(
+            curl -sS \
+              "$DT_BASE_URL/v1/project/lookup?name=$(printf %s "$PN" | jq -sRr @uri)&version=$(printf %s "$TV" | jq -sRr @uri)" \
+              -H "X-Api-Key: $DT_API_KEY" \
+            | jq -r '.uuid // empty'
+          )
 
           if [ -z "$SRC" ]; then echo "❌ Source not found: $PN:$FV" >&2; exit 1; fi
           if [ -z "$TGT" ]; then echo "❌ Target not found: $PN:$TV" >&2; exit 1; fi
 
-          echo "src=$SRC" >> $GITHUB_OUTPUT
-          echo "tgt=$TGT" >> $GITHUB_OUTPUT
+          echo "src=$SRC" >> "$GITHUB_OUTPUT"
+          echo "tgt=$TGT" >> "$GITHUB_OUTPUT"
           echo "Found: SRC=$SRC, TGT=$TGT"
 
       - name: Export VEX (CycloneDX) from source
