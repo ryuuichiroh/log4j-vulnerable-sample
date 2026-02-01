@@ -65,42 +65,83 @@ jobs:
             -F "projectVersion=${{ steps.meta.outputs.projectVersion }}" \
             -F "bom=@artifacts/sbom.json"
 
-      - name: List active DT project versions (inactive candidates)
+      # 4) アクティブ版サマリを作成し、VEX引き継ぎ候補を提案
+      - name: Summarize active versions and propose VEX transfer (SemVer-aware)
+        env:
+          PN: ${{ steps.meta.outputs.projectName }}
+          CUR: ${{ steps.meta.outputs.projectVersion }}
+          REPO: ${{ github.repository }}
+          DT_BASE_URL: ${{ secrets.DT_BASE_URL }}
+          DT_API_KEY:  ${{ secrets.DT_API_KEY }}
         run: |
-          PN="${{ steps.meta.outputs.projectName }}"
-          CUR="${{ steps.meta.outputs.projectVersion }}"
+          set -euo pipefail
 
-          echo "## Dependency-Track active versions" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
+          # DT から同名の active バージョン一覧を取得
           RESP=$(curl -sS \
             "$DT_BASE_URL/v1/project?name=$(printf %s "$PN" | jq -sRr @uri)&excludeInactive=true" \
             -H "X-Api-Key: $DT_API_KEY")
 
-          # active な version 一覧
-          ACTIVE=$(echo "$RESP" | jq -r '.[].version')
+          # JSON でなければ早期終了（トラブル検知）
+          echo "$RESP" | jq -e . >/dev/null || {
+            echo "Dependency-Track response is not JSON. Please check DT_BASE_URL / API key."
+            exit 1
+          }
 
-          echo "**Current version:** \`$CUR\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          # 例: ["2.0.0","1.1.0","1.0.0"]
+          ACTIVE_VERS=$(echo "$RESP" | jq -r '.[].version' | sed '/^$/d')
 
-          echo "**Active versions in DT:**" >> $GITHUB_STEP_SUMMARY
-          for v in $ACTIVE; do
-            echo "- $v" >> $GITHUB_STEP_SUMMARY
-          done
+          # SemVerとして自分より“古い”activeのみ抽出
+          # sort -V は 1.2.10 > 1.2.9 など数値として比較してくれる
+          # 自分より小さいものだけを列挙
+          readarray -t CANDIDATES < <(
+            { echo "$ACTIVE_VERS" | grep -vx -- "$CUR" || true; } \
+            | xargs -I{} bash -c 'printf "%s\n" "{}|$(printf "%s\n" "{}" "$CUR" | sort -V | head -n1)"' \
+            | awk -F'|' '$1==$2 {print $1}' \
+            | sort -V
+          )
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # inactive 候補（current 以外）
-          CANDIDATES=$(echo "$ACTIVE" | grep -v "^$CUR$" || true)
-
-          if [ -n "$CANDIDATES" ]; then
-            echo "### ⚠️ Inactive candidates" >> $GITHUB_STEP_SUMMARY
-            for v in $CANDIDATES; do
-              echo "- **$v**" >> $GITHUB_STEP_SUMMARY
-            done
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "➡️ If safe, deactivate via:" >> $GITHUB_STEP_SUMMARY
-            echo "\`Actions > Deactivate DT Project Version\`" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ No inactive candidates found." >> $GITHUB_STEP_SUMMARY
+          # “直前の active 旧版”を1件推薦（任意）
+          PREV_CAND=""
+          if [ ${#CANDIDATES[@]} -gt 0 ]; then
+            PREV_CAND="${CANDIDATES[-1]}"  # 一番新しい旧版
           fi
+
+          {
+            echo "## 🔁 VEX の引き継ぎ候補 (Dependency-Track / SemVer)"
+            echo
+            echo "**Project**: \`$PN\`"
+            echo
+            echo "**Current version (just registered)**: \`$CUR\`"
+            echo
+            echo "**Active versions in DT:**"
+            if [ -n "$ACTIVE_VERS" ]; then
+              echo "$ACTIVE_VERS" | sed 's/^/- /'
+            else
+              echo "- (none)"
+            fi
+            echo
+
+            if [ ${#CANDIDATES[@]} -gt 0 ]; then
+              echo "### ⚠️ Transfer VEX suggestions (older-than-current, SemVer)"
+              for v in "${CANDIDATES[@]}"; do
+                if [ -n "$v" ]; then echo "- **$v**"; fi
+              done
+              echo
+              if [ -n "$PREV_CAND" ]; then
+                echo "**おすすめ:** 直前の旧版 \`$PREV_CAND\` → \`$CUR\` へ VEX を移送"
+                echo
+                echo "**起動手順:**"
+                echo "1. Actions → **Transfer VEX decisions (manual)** を開く"
+                echo "2. 入力："
+                echo "   - \`projectName\` = \`$PN\`"
+                echo "   - \`fromVersion\` = \`$PREV_CAND\`"
+                echo "   - \`toVersion\`   = \`$CUR\`"
+                echo
+                echo "➡️ ワークフローを開く: https://github.com/$REPO/actions/workflows/transfer-vex.yml"
+                echo
+                echo "> 参考API: Export \`GET /v1/vex/cyclonedx/project/{uuid}\`, Import \`POST /v1/vex\`（multipart 推奨）"
+              fi
+            else
+              echo "✅ 自分より古い active 版はありません。引き継ぎ候補は無し。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
