@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       projectName:
-        description: "DT Project Name (共通の name)"
+        description: "プロジェクト名"
         required: true
         default: "log4j-vulnerable-sample"
       fromVersion:
-        description: "引き継ぎ元 Version（例: 1.0.0）"
+        description: "引き継ぎ元バージョン（例: 1.0.0）"
         required: true
       toVersion:
-        description: "引き継ぎ先 Version（例: 2.0.0）"
+        description: "引き継ぎ先バージョン（例: 2.0.0）"
         required: true
 
 permissions:
