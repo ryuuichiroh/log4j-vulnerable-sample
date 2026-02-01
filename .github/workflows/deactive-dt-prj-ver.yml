@@ -10,7 +10,7 @@ on:
       projectVersion:
         description: "Project Version to deactivate"
         required: true
-        example: "1.0.0"
+        default: "1.0.0"
 
 permissions:
   contents: none
