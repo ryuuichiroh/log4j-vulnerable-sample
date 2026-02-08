@@ -13,6 +13,6 @@ permissions:
 
 jobs:
   process-review:
-    uses: ryuuichiroh/log4j-vulnerable-sample/.github/workflows/reusable-review-close.yml@main
+    uses: ryuuichiroh/oss-management-system/.github/workflows/reusable-review-close.yml@main
     with:
       node-version: '24'
