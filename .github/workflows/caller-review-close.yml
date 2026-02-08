@@ -16,7 +16,3 @@ jobs:
     uses: ryuuichiroh/oss-management-system/.github/workflows/reusable-review-close.yml@main
     with:
       node-version: '24'
-    secrets:
-      # GitHub token（必須）
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
