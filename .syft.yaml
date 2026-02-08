@@ -1,0 +1,6 @@
+exclude:
+  - "./.github/**"           # GitHub Actions ワークフロー
+  - "./.git/**"              # Git メタデータ
+  - "**/node_modules/**"     # Node.js 依存関係（必要に応じて）
+  - "**/test/**"             # テストファイル（必要に応じて）
+  - "**/tests/**"            # テストファイル（必要に応じて）

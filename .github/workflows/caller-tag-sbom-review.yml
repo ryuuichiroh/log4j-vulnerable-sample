@@ -25,6 +25,3 @@ jobs:
       # Dependency-Track連携用（オプション）
       DT_BASE_URL: ${{ secrets.DT_BASE_URL }}
       DT_API_KEY: ${{ secrets.DT_API_KEY }}
-      
-      # GitHub token（必須）
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
