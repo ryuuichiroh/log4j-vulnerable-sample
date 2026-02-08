@@ -1,167 +1,359 @@
-# log4j-vulnerable-sample
+# OSS管理システム
 
-- Dependency-Track (DT) を使った脆弱性管理の検証用のプロジェクトです。
-- 意図的に脆弱性のある OSS を利用しています。
+GitHub ActionsとDependency-Trackを活用した、OSS(オープンソースソフトウェア)管理の自動化システムです。SBOM(Software Bill of Materials)の自動生成、差分検出、ライセンスガイドの提示、見直し・承認プロセスの管理を通じて、OSSコンプライアンス管理を効率化します。
 
-## GitHub Actions
+## 主な機能
 
-- PR 発行時に SBOM 生成 + 脆弱性スキャン
-- main マージ時に DT へ登録
-- (手動) VEX の引継ぎ
-- (手動) 古いプロジェクトのディアクティブ
+- **SBOM自動生成**: Syftを使用してCycloneDX形式のSBOMを自動生成
+- **差分検出**: 前回リリースとの差分を自動比較し、変更されたOSSコンポーネントのみを抽出
+- **ライセンスガイド**: ライセンスごとの対応ガイドラインを自動表示
+- **PR自動コメント**: PRに差分情報とガイドラインを自動投稿
+- **見直し・承認フロー**: GitHub Issueを使った構造化された見直し・承認プロセス
+- **Dependency-Track連携**: 承認後のSBOMを自動的にDependency-Trackに登録
 
-## 検証手順
+## システム構成
 
-### SBOM 作成、DT への登録から更新まで
+```
+┌─────────────┐
+│ Pull Request│
+└──────┬──────┘
+       │ trigger
+       ▼
+┌─────────────────────────────────┐
+│ PR Workflow                     │
+│ - SBOM生成                      │
+│ - 差分比較                      │
+│ - PRコメント投稿                │
+└─────────────────────────────────┘
 
-1. log4j 1.1.3 に依存があるプロジェクトで SBOM を作成する
+┌─────────────┐
+│ Tag Creation│
+└──────┬──────┘
+       │ trigger
+       ▼
+┌─────────────────────────────────┐
+│ Tag Workflow                    │
+│ - SBOM生成                      │
+│ - 差分比較                      │
+│ - 見直しIssue作成               │
+└─────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────┐
+│ Review Issue (手動クローズ)     │
+└──────┬──────────────────────────┘
+       │ trigger
+       ▼
+┌─────────────────────────────────┐
+│ Review Close Workflow           │
+│ - 見直し結果抽出                │
+│ - 承認Issue作成 (必要な場合)    │
+└─────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────┐
+│ Approval Issue (手動クローズ)   │
+└──────┬──────────────────────────┘
+       │ trigger
+       ▼
+┌─────────────────────────────────┐
+│ Approval Close Workflow         │
+│ - DT登録                        │
+│ - コンポーネントプロパティ設定  │
+└─────────────────────────────────┘
+```
 
-    ```bash
-    docker run --rm -v $(pwd):/work aquasec/trivy fs \
-      --scanners vuln \
-      --format cyclonedx \
-      --output /work/sbom-log4j-1.1.3.json \
-      /work
-    ```
+## セットアップ
 
-1. log4j 1.1.3 への依存関係を持つ SBOM を DT に送信する
+### 前提条件
 
-    DT 上でのプロジェクトバージョンは 1.0 とする。
+- Node.js 20以上
+- GitHub リポジトリ
+- Dependency-Track インスタンス (オプション)
 
-    ```bash
-    curl -X "POST" "http://xx.xx.xx.xx:8081/api/v1/bom" \
-      -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
-      -F "autoCreate=true" \
-      -F "projectName=log4j-vulnerable-sample" \
-      -F "projectVersion=1.0" \
-      -F "bom=@sbom-log4j-1.1.3.json" -v -i -sS
-    ```
+### インストール
 
-1. DT 上で 1.0 のプロジェクトを表示し、任意の脆弱性を1つ解決済みにする
+1. リポジトリをクローン:
+```bash
+git clone <repository-url>
+cd oss-management-system
+```
 
-1. 1.0 のプロジェクトの VEX を取得する
+2. 依存関係をインストール:
+```bash
+npm install
+```
 
-    ```bash
-    curl http://xx.xx.xx.xx:8081/api/v1/vex/cyclonedx/project/87ba7cf1-72f1-4e00-ae7a-4f208afd56a3 -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    ```
+3. TypeScriptをビルド:
+```bash
+npm run build
+```
 
-1. pom.xml を更新し、log4j のバージョンを 1.1.3 から 1.2.17 に更新し、SBOM を作成する
+### 環境変数の設定
 
-    ```bash
-    docker run --rm -v $(pwd):/work aquasec/trivy fs \
-      --scanners vuln \
-      --format cyclonedx \
-      --output /work/sbom-log4j-1.2.17.json \
-      /work
-    ```
+GitHub リポジトリのSettings > Secrets and variablesで以下のシークレットを設定してください:
 
-1. log4j 1.2.17 への依存関係を持つ SBOM を DT に送信する
+#### 必須
 
-    DT 上でのプロジェクトバージョンは 2.0 とする。
+- `GITHUB_TOKEN`: GitHub Actions が自動的に提供 (設定不要)
 
-    ```bash
-    curl -X "POST" "http://xx.xx.xx.xx:8081/api/v1/bom" \
-      -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
-      -F "autoCreate=true" \
-      -F "projectName=log4j-vulnerable-sample" \
-      -F "projectVersion=2.0" \
-      -F "bom=@sbom-log4j-1.2.17.json" -v -i -sS
-    ```
-1. VEX を 2.0 のプロジェクトに適用する
+#### Dependency-Track連携用 (オプション)
 
-    ```bash
-    curl -X "POST" "http://xx.xx.xx.xx:8081/api/v1/vex" \
-      -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
-      -F "projectName=log4j-vulnerable-sample" \
-      -F "projectVersion=2.0" \
-      -F "vex=@vex.json" -v -i -sS
-    ```
+- `DT_BASE_URL`: Dependency-TrackのベースURL (例: `https://dtrack.example.com`)
+- `DT_API_KEY`: Dependency-TrackのAPIキー
 
-1. 2.0 のプロジェクトの VEX を取得する
+Dependency-Track連携を使用しない場合、システムは初回リリースとして動作し、すべてのコンポーネントを新規として扱います。
 
-    ```bash
-    # GET /v1/vex/cyclonedx/project/{uuid}
-    curl "http://xx.xx.xx.xx:8081/api/v1/vex/cyclonedx/project/faaaac4d-3226-4e98-a8a7-2304038e290c" \
-      -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    ```
-1. 1.0 のプロジェクトを非アクティブにする
+### ライセンスガイドラインの設定
 
-    ```bash
-    # PATCH /v1/project/{uuid}
-    curl -X PATCH "http://xx.xx.xx.xx:8081/api/v1/project/87ba7cf1-72f1-4e00-ae7a-4f208afd56a3" \
-      -H "X-Api-Key: odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "active": false
-      }' -v -i -sS
-    ```
+`config/license-guidelines.yml` ファイルでライセンスごとのガイドラインを定義します。
 
-### DT のプロジェクトに紐づくプロパティの管理
+サンプル設定:
+```yaml
+version: "1.0"
+guidelines:
+  - license_id: "Apache-2.0"
+    common_instructions: "Apache License 2.0の規定に従い、著作権表示と許諾表示を保持してください。"
+    rules:
+      - condition: "always"
+        message: "NOTICEファイルが含まれている場合は製品に同梱してください。"
+        input_type: "checkbox"
+        label: "NOTICEファイルの対応"
+```
 
-#### ProjectProperty
+詳細は `config/license-guidelines.yml` を参照してください。
 
-1. ProjectProperty を取得する
+## 使用方法
 
-    ```bash
-    # Project
-    # GET /v1/project
-    curl http://20.78.124.206:8081/api/v1/project -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2"
+### 1. PR作成時の自動チェック
 
-    # ProjectProperty of a specified project
-    # GET /v1/project/{uuid}
-    curl http://20.78.124.206:8081/api/v1/project/dab05b7f-738b-488b-8dc3-775b5946926f/property -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2"
-    ```
+PRを作成すると、自動的に以下が実行されます:
 
-1. ProjectProperty を登録する
+1. 現在のブランチからSBOMを生成
+2. Dependency-Trackから前回のSBOMを取得
+3. 差分を比較
+4. PRにコメントを投稿 (差分一覧とライセンスガイドライン)
 
-    ```bash
-    # PUT /v1/project/{uuid}/property
-    # maxLenth of groupName/propertyName/description: 255
-    # propertyType: [ BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID ]
-    curl -X PUT http://20.78.124.206:8081/api/v1/project/dab05b7f-738b-488b-8dc3-775b5946926f/property \
-      -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "groupName": "customGroup",
-        "propertyName": "name 1",
-        "propertyValue": "false",
-        "propertyType": "STRING",
-        "description": "description 1"
-      }'
-    ```
+**PRコメントの例:**
+```markdown
+## 🔍 OSS差分検出
 
-#### ComponentProperty
+前回リリースとの差分が検出されました。
 
-1. ComponentProperty を取得する
+### 差分一覧
 
-    ```bash
-    # Component of a specified project
-    # GET /v1/component/project/{uuid}
-    curl http://20.78.124.206:8081/api/v1/component/project/dab05b7f-738b-488b-8dc3-775b5946926f -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2"
+| 変更 | OSS名 | バージョン | ライセンス |
+|------|-------|-----------|-----------|
+| 🆕 | lib-scanner | 2.1.0 | Apache-2.0 |
+| 🔄 | fast-json | 1.4.0 → 1.5.0 | MIT |
 
-    # ComponentProperty of a specified component
-    # GET /v1/component/{uuid}
-    curl http://20.78.124.206:8081/api/v1/component/17cf02f3-87ff-4115-b81d-b332d08a6985/property -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2"
-    ```
+### ライセンスガイドライン
 
-1. ComponentProperty を登録する
+**Apache-2.0 (lib-scanner)**
+- NOTICEファイルが含まれている場合は製品に同梱してください。
+```
 
-    ```bash
-    # PUT /v1/component/{uuid}/property
-    # maxLenth of groupName/propertyName/description: 255
-    # propertyType: [ BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID ]
-    curl -X PUT http://20.78.124.206:8081/api/v1/component/17cf02f3-87ff-4115-b81d-b332d08a6985/property \
-      -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "groupName": "customGroup",
-        "propertyName": "name 1",
-        "propertyValue": "false",
-        "propertyType": "STRING",
-        "description": "description 1"
-      }'
-    ```
+### 2. タグ作成時の見直しIssue作成
 
-## 補足
+リリースタグ (例: `v1.0.0`) を作成すると、自動的に見直しIssueが作成されます:
 
-- DT の Web API 仕様書: dependency-track/openapi.json
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+見直しIssueには以下が含まれます:
+- 差分コンポーネントの一覧
+- 各ライセンスのガイドライン
+- 入力フィールド (チェックボックス、テキスト、選択肢)
+- 承認要求チェックボックス
+
+### 3. 見直しIssueの対応
+
+1. 作成された見直しIssueを開く
+2. 各コンポーネントのガイドラインに従って対応
+3. 入力フィールドに対応内容を記入
+4. 承認が必要な場合は「承認を依頼する」チェックボックスをON
+5. Issueをクローズ
+
+Issueをクローズすると:
+- 承認要求がONの場合: 承認Issueが自動作成される
+- 承認要求がOFFの場合: 処理終了
+
+### 4. 承認Issueの対応
+
+1. 作成された承認Issueを開く
+2. 見直し結果を確認
+3. 承認する場合は「承認する」チェックボックスをON
+4. Issueをクローズ
+
+Issueをクローズすると:
+- 承認がONの場合: SBOMがDependency-Trackに自動登録される
+- 承認がOFFの場合: 処理終了
+
+## ワークフロー詳細
+
+### PR SBOM Check (`.github/workflows/pr-sbom-check.yml`)
+
+**トリガー**: Pull Request作成・更新時
+
+**処理フロー**:
+1. Syftを使用してSBOMを生成
+2. Dependency-Trackから前回のSBOMを取得
+3. 差分を比較
+4. ライセンスガイドラインを取得
+5. PRにコメントを投稿
+6. SBOMをアーティファクトとして保存
+
+**必要な権限**:
+- `contents: read`
+- `pull-requests: write`
+
+### Tag SBOM Review (`.github/workflows/tag-sbom-review.yml`)
+
+**トリガー**: タグ作成時 (`v*`, `release-*`)
+
+**処理フロー**:
+1. Syftを使用してSBOMを生成
+2. Dependency-Trackから前回のSBOMを取得
+3. 差分を比較
+4. ライセンスガイドラインを取得
+5. 見直しIssueを作成
+6. SBOMをアーティファクトとして保存
+
+**必要な権限**:
+- `contents: read`
+- `issues: write`
+
+### Review Close (`.github/workflows/review-close.yml`)
+
+**トリガー**: 見直しIssueクローズ時 (ラベル: `oss-review`)
+
+**処理フロー**:
+1. Issueから見直し結果を抽出
+2. 承認要求チェックボックスを確認
+3. 承認要求がONの場合、承認Issueを作成
+4. 見直し結果JSONをアーティファクトとして保存
+
+**必要な権限**:
+- `contents: read`
+- `issues: write`
+
+### Approval Close (`.github/workflows/approval-close.yml`)
+
+**トリガー**: 承認Issueクローズ時 (ラベル: `oss-approval`)
+
+**処理フロー**:
+1. Issueから承認チェックボックスを確認
+2. 承認がONの場合、SBOMをDependency-Trackに登録
+3. コンポーネントプロパティを設定
+
+**必要な権限**:
+- `contents: read`
+
+## スクリプト
+
+### diff-checker.js
+
+2つのSBOMを比較し、差分を検出します。
+
+```bash
+node dist/scripts/diff-checker.js <current-sbom> <previous-sbom> <output-file>
+```
+
+### license-guide-provider.js
+
+ライセンスガイドラインを取得します。
+
+```bash
+node dist/scripts/license-guide-provider.js <license-id> <guidelines-file>
+```
+
+### pr-commenter.js
+
+PRにコメントを投稿します。
+
+```bash
+node dist/scripts/pr-commenter.js <pr-number> <diff-file> <artifact-url> <guidelines-file>
+```
+
+### issue-creator.js
+
+GitHub Issueを作成します。
+
+```bash
+# 見直しIssue作成
+node dist/scripts/issue-creator.js review <version> <diff-file> <artifact-url> <guidelines-file>
+
+# 承認Issue作成
+node dist/scripts/issue-creator.js approval <version> <review-results-file> <sbom-url> <review-results-url>
+```
+
+### issue-parser.js
+
+GitHub Issueから見直し結果を抽出します。
+
+```bash
+node dist/scripts/issue-parser.js <issue-number> <output-file>
+```
+
+### dt-client-cli.js
+
+Dependency-Track APIと通信します。
+
+```bash
+# SBOM取得
+node dist/scripts/dt-client-cli.js get-sbom <project-name> <version> <output-file>
+
+# SBOM登録
+node dist/scripts/dt-client-cli.js upload-sbom <project-name> <version> <sbom-file>
+
+# コンポーネントプロパティ設定
+node dist/scripts/dt-client-cli.js set-properties <project-uuid> <review-results-file>
+```
+
+## テスト
+
+```bash
+# すべてのテストを実行
+npm test
+
+# テストをウォッチモードで実行
+npm run test:watch
+```
+
+## トラブルシューティング
+
+### Dependency-Trackに接続できない
+
+- `DT_BASE_URL` と `DT_API_KEY` が正しく設定されているか確認
+- Dependency-TrackのAPIキーに適切な権限があるか確認
+- ネットワーク接続を確認
+
+### SBOMが生成されない
+
+- Syftがインストールされているか確認
+- プロジェクトに依存関係が存在するか確認
+- ビルドツール (Maven, npm等) が正しく設定されているか確認
+
+### PRコメントが投稿されない
+
+- `GITHUB_TOKEN` に `pull-requests: write` 権限があるか確認
+- ワークフローの実行ログを確認
+
+### 見直しIssueが作成されない
+
+- タグ名が `v*` または `release-*` のパターンに一致するか確認
+- `GITHUB_TOKEN` に `issues: write` 権限があるか確認
+
+## ライセンス
+
+MIT
+
+## 貢献
+
+Issue、Pull Requestを歓迎します。
+
+## サポート
+
+質問や問題がある場合は、GitHubのIssueを作成してください。
