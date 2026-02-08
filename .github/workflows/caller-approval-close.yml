@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   process-approval:
-    uses: ryuuichiroh/log4j-vulnerable-sample/.github/workflows/reusable-approval-close.yml@main
+    uses: ryuuichiroh/oss-management-system/.github/workflows/reusable-approval-close.yml@main
     with:
       node-version: '24'
     secrets:
@@ -23,3 +23,4 @@ jobs:
       
       # GitHub token（必須）
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
