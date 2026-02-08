@@ -161,3 +161,7 @@
         "description": "description 1"
       }'
     ```
+
+## 補足
+
+- DT の Web API 仕様書: dependency-track/openapi.json
