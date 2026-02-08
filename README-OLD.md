@@ -105,11 +105,11 @@
     ```bash
     # Project
     # GET /v1/project
-    curl http://20.78.124.206:8081/api/v1/project -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2"
+    curl http://xx.xx.xx.xx.206:8081/api/v1/project -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
     # ProjectProperty of a specified project
     # GET /v1/project/{uuid}
-    curl http://20.78.124.206:8081/api/v1/project/dab05b7f-738b-488b-8dc3-775b5946926f/property -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2"
+    curl http://xx.xx.xx.xx.206:8081/api/v1/project/dab05b7f-738b-488b-8dc3-775b5946926f/property -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     ```
 
 1. ProjectProperty を登録する
@@ -118,8 +118,8 @@
     # PUT /v1/project/{uuid}/property
     # maxLenth of groupName/propertyName/description: 255
     # propertyType: [ BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID ]
-    curl -X PUT http://20.78.124.206:8081/api/v1/project/dab05b7f-738b-488b-8dc3-775b5946926f/property \
-      -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2" \
+    curl -X PUT http://xx.xx.xx.xx.206:8081/api/v1/project/dab05b7f-738b-488b-8dc3-775b5946926f/property \
+      -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
       -H "Content-Type: application/json" \
       -d '{
         "groupName": "customGroup",
@@ -137,11 +137,11 @@
     ```bash
     # Component of a specified project
     # GET /v1/component/project/{uuid}
-    curl http://20.78.124.206:8081/api/v1/component/project/dab05b7f-738b-488b-8dc3-775b5946926f -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2"
+    curl http://xx.xx.xx.xx.206:8081/api/v1/component/project/dab05b7f-738b-488b-8dc3-775b5946926f -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
     # ComponentProperty of a specified component
     # GET /v1/component/{uuid}
-    curl http://20.78.124.206:8081/api/v1/component/17cf02f3-87ff-4115-b81d-b332d08a6985/property -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2"
+    curl http://xx.xx.xx.xx.206:8081/api/v1/component/17cf02f3-87ff-4115-b81d-b332d08a6985/property -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     ```
 
 1. ComponentProperty を登録する
@@ -150,8 +150,8 @@
     # PUT /v1/component/{uuid}/property
     # maxLenth of groupName/propertyName/description: 255
     # propertyType: [ BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID ]
-    curl -X PUT http://20.78.124.206:8081/api/v1/component/17cf02f3-87ff-4115-b81d-b332d08a6985/property \
-      -H "X-Api-Key:odt_xCqztWmz_Ie9NeWzYwcbP7cmrehZVikEDQoY1UwR2" \
+    curl -X PUT http://xx.xx.xx.xx.206:8081/api/v1/component/17cf02f3-87ff-4115-b81d-b332d08a6985/property \
+      -H "X-Api-Key:odt_xxxxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
       -H "Content-Type: application/json" \
       -d '{
         "groupName": "customGroup",
