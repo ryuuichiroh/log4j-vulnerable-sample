@@ -63,15 +63,18 @@ function getLicenseId(diff: ComponentDiff): string {
  */
 function formatVersion(diff: ComponentDiff): string {
   if (diff.changeType === 'updated' && diff.previousVersion) {
-    return `${diff.previousVersion} → ${diff.component.version}`;
+    return `${diff.previousVersion} → ${diff.component.version || 'unknown'}`;
   }
-  return diff.component.version;
+  return diff.component.version || 'unknown';
 }
 
 /**
  * Escape Markdown special characters
  */
-function escapeMarkdown(text: string): string {
+function escapeMarkdown(text: string | undefined): string {
+  if (!text) {
+    return '';
+  }
   return text
     .replace(/\|/g, '\\|')
     .replace(/\n/g, ' ')

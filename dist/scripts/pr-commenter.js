@@ -91,14 +91,17 @@ function getLicenseId(diff) {
  */
 function formatVersion(diff) {
     if (diff.changeType === 'updated' && diff.previousVersion) {
-        return `${diff.previousVersion} → ${diff.component.version}`;
+        return `${diff.previousVersion} → ${diff.component.version || 'unknown'}`;
     }
-    return diff.component.version;
+    return diff.component.version || 'unknown';
 }
 /**
  * Escape Markdown special characters
  */
 function escapeMarkdown(text) {
+    if (!text) {
+        return '';
+    }
     return text
         .replace(/\|/g, '\\|')
         .replace(/\n/g, ' ')
